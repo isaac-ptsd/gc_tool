@@ -6,7 +6,6 @@ import csv
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-from argparse import ArgumentParser
 from gooey import Gooey, GooeyParser
 import pprint
 
@@ -90,82 +89,57 @@ def to_csv(list_of_dicts_in, name_of_csv_to_create):
         print(e)
 
 
-# @Gooey(program_name="Fetch Grades",)
-# def parse_args():
-#     """ Use ArgParser to build up the arguments we will use in our script
-#     Save the arguments in a default json file so that we can retrieve them
-#     every time we run the script.
-#     """
-#     stored_args = {}
-#     # get the script name without the extension & use it to build up
-#     # the json filename
-#     script_name = os.path.splitext(os.path.basename(__file__))[0]
-#     args_file = "{}-args.json".format(script_name)
-#     # Read in the prior arguments as a dictionary
-#     if os.path.isfile(args_file):
-#         with open(args_file) as data_file:
-#             stored_args = json.load(data_file)
-#     parser = GooeyParser(description='Pull grades from Google ClassRoom')
-#     parser.add_argument('output_directory',
-#                         action='store',
-#                         widget='DirChooser',
-#                         default=stored_args.get('output_directory'),
-#                         help="Output directory to save csv of grades")
-#     args = parser.parse_args()
-#     # Store the values of the arguments so we have them next time we run
-#     with open(args_file, 'w') as data_file:
-#         # Using vars(args) returns the data as a dictionary
-#         json.dump(vars(args), data_file)
-#     return args
-
-
-# if __name__ == '__main__':
-#     conf = parse_args()
-#     print("Running main")
-#     main(conf.output_directory)
-#     print("Done")
-
-def main(write_path):
+@Gooey(program_name="Fetch Grades",)
+def main():
     """Shows basic usage of the Classroom API.
     Prints the names of the first 10 courses the user has access to.
     """
-
     # API call to get classes
     results = service.courses().list(pageSize=10).execute()
-    courses = results.get('courses', [])
+    courses = results.get('courses')
+    course_names = []
+    for c in courses:
+        course_names.append(c["name"])
+    print(course_names)
 
-    if not courses:
-        print('No courses found.')
-    else:
-        print('Writing Courses:')
-        complete_name = os.path.join(write_path, "courses.txt")
-        file1 = open(complete_name, "w")
-        file1.write(str(courses))
-        file1.close()
+    parser = GooeyParser(description='Pull grades from Google ClassRoom')
+    parser.add_argument('output_directory',
+                        action='store',
+                        widget='DirChooser',
+                        help="Output directory to save csv of grades")
+    parser.add_argument('course_selection',
+                        action='store',
+                        choices=course_names,
+                        help="Choose a course to pull grade info from.")
+    user_inputs = vars(parser.parse_args())
+
+    selected_course = user_inputs['course_selection']
+    slctd_crs_id = ''
+    for c in courses:
+        if c["name"] == selected_course:
+            slctd_crs_id = c["id"]
+    print("selected course id: ", slctd_crs_id)
 
     # API call to get course work
-    student_submissions = service.courses().courseWork().studentSubmissions().list(courseId='115992425191',
+    student_submissions = service.courses().courseWork().studentSubmissions().list(courseId=slctd_crs_id,
                                                                                    courseWorkId='-').execute()
-
-    id_grade = get_userId_grade(student_submissions)
-    print("get_grades: ", id_grade)
-    # print("swap_id_for_name: ", swap_id_for_name(student_submissions))
-    for d in get_userId_grade(student_submissions):
-        for key in d:
-            print(student_lookup(key))
-    print(swap_id_for_name(id_grade))
-
-
-    if not student_submissions:
-        print('No course work found.')
-    else:
-        print('Writing course work:')
-        complete_name = os.path.join(write_path, "grades.txt")
-        file1 = open(complete_name, "w")
-        file1.write(str(student_submissions))
-        file1.close()
+    try:
+        id_grade = get_userId_grade(student_submissions)
+        print("get_grades: ", id_grade)
+        print("Students: ")
+        for d in get_userId_grade(student_submissions):
+            for key in d:
+                print(" ", student_lookup(key))
+        print("swap_id_for_name: ", swap_id_for_name(id_grade))
+    except KeyError:
+        print("No grades found for ", selected_course)
+    except:
+        print("uh-oh something broke")
 
 
 if __name__ == '__main__':
-    main("c:\\Users\isaac.stoutenburgh\Documents")
+    print("Running main")
+    main()
+    print("Done")
+
 
