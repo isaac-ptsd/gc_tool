@@ -8,6 +8,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from gooey import Gooey, GooeyParser
 import pprint
+import pandas as pd
 
 ###############################################
 # Credentials / Authorization
@@ -91,17 +92,16 @@ def to_csv(list_of_dicts_in, name_of_csv_to_create):
 
 @Gooey(program_name="Fetch Grades",)
 def main():
-    """Shows basic usage of the Classroom API.
-    Prints the names of the first 10 courses the user has access to.
-    """
     # API call to get classes
     results = service.courses().list(pageSize=10).execute()
+
+    # create list of course names to select from
     courses = results.get('courses')
     course_names = []
     for c in courses:
         course_names.append(c["name"])
-    print(course_names)
 
+    # gooey arguments
     parser = GooeyParser(description='Pull grades from Google ClassRoom')
     parser.add_argument('output_directory',
                         action='store',
@@ -111,6 +111,10 @@ def main():
                         action='store',
                         choices=course_names,
                         help="Choose a course to pull grade info from.")
+    parser.add_argument('grade_template',
+                        action='store',
+                        widget='FileChooser',
+                        help="Select a grade template to use")
     user_inputs = vars(parser.parse_args())
 
     selected_course = user_inputs['course_selection']
@@ -138,8 +142,6 @@ def main():
 
 
 if __name__ == '__main__':
-    print("Running main")
     main()
-    print("Done")
 
 
