@@ -12,3 +12,4 @@ note you will need to follow the quickstart instructions
 After enabling the classroom API, download the credentials.json file
 and save to the pull_grades folder. 
 
+You must also copy the google_api_python_client%/ folder into the pull_grades folder before running the application
