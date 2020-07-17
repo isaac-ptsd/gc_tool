@@ -3,5 +3,13 @@
 ### Google Classroom api documentation:
 * https://developers.google.com/classroom/quickstart/python
 
-###simple GUI guide using Gooey library:
-* https://pbpython.com/pandas-gui.html
+###To build distribution:
+`pyinstaller --noconsole pull_grades.py`
+
+note you will need to follow the quickstart instructions
+, at the link above, before you are able to run this program.
+
+After enabling the classroom API, download the credentials.json file
+and save to the pull_grades folder. 
+
+You must also copy the google_api_python_client%/ folder into the pull_grades folder before running the application

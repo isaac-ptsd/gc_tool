@@ -1,6 +1,6 @@
 from __future__ import print_function
 import pickle
-import os.path
+import os
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -41,6 +41,8 @@ service = build('classroom', 'v1', credentials=creds)
 ###############################################
 # Credentials / Authorization
 ###############################################
+
+
 def assignment_lookup(course_id_in, id_in):
     # api call
     course_info = service.courses().courseWork().get(courseId=course_id_in, id=id_in).execute()
@@ -91,6 +93,7 @@ def student_lookup(user_id):
     """
     # API Call
     user_info = service.userProfiles().get(userId=user_id).execute()
+    print("printing user info JSON: ", user_info)
     return user_info["name"]["familyName"] + ", " + user_info["name"]["givenName"]
 
 
