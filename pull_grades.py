@@ -10,7 +10,6 @@ import pandas as pd
 ###############################################
 # Credentials / Authorization
 ###############################################
-
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/classroom.courses.readonly',
           'https://www.googleapis.com/auth/classroom.coursework.students',
@@ -67,11 +66,13 @@ def find_name_location(student_name, df):
         return a.item()
 
 
-def create_import_file(grade_template, save_path, assignment_name, course_name,  name_grade_dict_list):
+def create_import_file(grade_template, save_path, assignment_name, course_name, name_grade_dict_list, max_points):
     """
+    :param max_points:
+    :param course_name: user selected course passed in as a parameter from the GUI
     :param grade_template: csv grade template from PowerSchool
     :param save_path: where to save new csv file (to be used as an import into PowerSchool)
-    :param assignment_name: user selected course passed in as a parameter from the GUI
+    :param assignment_name:
     :param name_grade_dict_list: list of dictionaries: [{<student name>: <grade>}]
     :return:
     This function will create a csv file of student grades following the grade template format
@@ -81,6 +82,7 @@ def create_import_file(grade_template, save_path, assignment_name, course_name, 
         df.columns = ['A', 'B', 'C']
         df.at[1, 'B'] = course_name
         df.at[2, 'B'] = assignment_name
+        df.at[4, 'B'] = max_points
         for d in name_grade_dict_list:
             for key, value in d.items():
                 found_loc = find_name_location(key, df)
@@ -97,7 +99,7 @@ def create_import_file(grade_template, save_path, assignment_name, course_name, 
 def student_lookup(user_id):
     """
     :param user_id:
-    :return: users name: "familyName,  givenName"
+    :return: "familyName,  givenName"
     called by swap_id_for_name
     """
     # API Call
@@ -164,19 +166,34 @@ def get_all_assignments_for_course(student_submissions):
     return list(set(list_of_assignments))
 
 
-# def get_max_points_for_assignment(student_sumbissions):
-#     # max_points = student_submissions["studentSubmissions"][1]["submissionHistory"][2]["gradeHistory"]["maxPoints"]
-#     for i in student_sumbissions["studentSubmissions"]:
-#         print("i:", i)
-#         for k, v in i.items():
-#             print("v: ", v)
+def get_max_points_for_assignment(student_submissions):
+    max_points_list_tuples = [
+        (data['courseWorkId'], element['gradeHistory']['maxPoints'], element['gradeHistory']['gradeTimestamp'])
+        for data in student_submissions['studentSubmissions']
+        if 'submissionHistory' in data
+        for element in data['submissionHistory']
+        if 'gradeHistory' in element
+        if 'maxPoints' in element['gradeHistory']]
+
+    ret_val = {}
+    for x, y, z in max_points_list_tuples:
+        if x in ret_val:
+            if (y, z) not in ret_val[x]:
+                ret_val[x].append((y, z))
+        else:
+            ret_val[x] = [(y, z)]
+
+    return ret_val
 
 
 @Gooey(program_name="Fetch Grades", )
 def main():
     # API call to get classes
-    """TODO: 1) look up students by name in template and update when found
-                Goal is to preserve student ID's
+    """
+    TODO:    1) remove students from import csv if student is not assigned a grade for that assignment
+             2) create nightly PS export of all students & student ID's across all courses per teacher
+             3) update script to use exported PS data to create import csv
+             4) update script to hide grade template selection
     """
 
     # API call to get course json
@@ -208,14 +225,12 @@ def main():
     selected_course = user_inputs['course_selection']
     grade_template = user_inputs['grade_template']
     save_path = user_inputs['output_directory']
-    print("######################################################")
-    print("\nSelected Course: ", selected_course, flush=True)
-
+    print("\n\n###########################################################################\n\n")
     # API call to get course work
     student_submissions = service.courses().courseWork().studentSubmissions().list(
         courseId=selected_course_id(courses_json, selected_course),
         courseWorkId='-').execute()
-    course_id = selected_course_id(courses_json, selected_course)
+
     # cid_cwid_uid_ag = [(c['courseId'], c['courseWorkId'], c["userId"], c["assignedGrade"])
     #                    for c in student_submissions['studentSubmissions']
     #                    if "courseId" in c
@@ -224,12 +239,16 @@ def main():
     #                    and "assignedGrade" in c]
 
     # create import file for each assignment in selected course
+    course_id = selected_course_id(courses_json, selected_course)
     list_of_assignments = get_all_assignments_for_course(student_submissions)
-    for a in list_of_assignments:
-        assignment_name = assignment_lookup(course_id, a)
-        name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
-        print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
-        create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list)
+    print("list of assignments: ", list_of_assignments)
+    max_points = get_max_points_for_assignment(student_submissions)
+    print(max_points)
+    # for a in list_of_assignments:
+    #     assignment_name = assignment_lookup(course_id, a)
+    #     name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
+    #     print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
+    #     create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_points)
 
 
 if __name__ == '__main__':
