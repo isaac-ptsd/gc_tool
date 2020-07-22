@@ -88,16 +88,19 @@ def create_import_file(grade_template, save_path, assignment_name, course_name, 
         df.at[1, 'B'] = course_name
         df.at[2, 'B'] = assignment_name
         df.at[4, 'B'] = max_points
-        save_locations = []
+        num_rows = len(df.index)  # starts counting at 0
+        i = num_rows - 1
+        if num_rows > 8:
+            while i > 8:
+                df.at[i, 'C'] = 'empty, no grade'
+                i -= 1
         for d in name_grade_dict_list:  # d: dictionary
             for key, value in d.items():
-                print(key, value)
                 found_loc = find_name_location(key, df)
-                if found_loc != 'not found':
+                if found_loc != 'empty, no grade':
                     df.at[found_loc, 'C'] = value
-                    save_locations.append(found_loc)
-        # remove all cell values except those in save_locations from A:10 to C:<max>
-
+        # remove all rows with 'empty, no grade'
+        df = df[df.C != 'empty, no grade']
         bad_chars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"]
         clean_assignment_name = ''.join(i for i in assignment_name if i not in bad_chars)
         output_file = os.path.join(save_path, clean_assignment_name + "_grade_template.csv")
@@ -205,11 +208,11 @@ def get_max_points_for_assignment(student_submissions, assignment_id):
     return ret_val
 
 
-@Gooey(program_name="Fetch Grades", )
+@Gooey(program_name="Fetch Grades")
 def main():
     # API call to get classes
     """
-    TODO:    1) remove students from import csv if student is not assigned a grade for that assignment
+    TODO:
              2) create nightly PS export of all students & student ID's across all courses per teacher
              3) update script to use exported PS data to create import csv
              4) update script to hide grade template selection
