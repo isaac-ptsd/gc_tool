@@ -166,7 +166,7 @@ def get_all_assignments_for_course(student_submissions):
     return list(set(list_of_assignments))
 
 
-def get_max_points_for_assignment(student_submissions):
+def get_max_points_for_assignment(student_submissions, assignment_id):
     max_points_list_tuples = [
         (data['courseWorkId'], element['gradeHistory']['maxPoints'], element['gradeHistory']['gradeTimestamp'])
         for data in student_submissions['studentSubmissions']
@@ -175,14 +175,19 @@ def get_max_points_for_assignment(student_submissions):
         if 'gradeHistory' in element
         if 'maxPoints' in element['gradeHistory']]
 
-    ret_val = {}
+    max_point_dict = {}
     for x, y, z in max_points_list_tuples:
-        if x in ret_val:
-            if (y, z) not in ret_val[x]:
-                ret_val[x].append((y, z))
+        if x in max_point_dict:
+            if (y, z) not in max_point_dict[x]:
+                max_point_dict[x].append((y, z))
         else:
-            ret_val[x] = [(y, z)]
-
+            max_point_dict[x] = [(y, z)]
+    ret_val = -1
+    for k, v in max_point_dict.items():
+        x = max([t[1] for t in v])
+        correct_point_value = [item[0] for item in v if item[1] == x][0]  # [0] pops the value out of a list
+        if k == assignment_id:
+            ret_val = correct_point_value
     return ret_val
 
 
@@ -241,14 +246,13 @@ def main():
     # create import file for each assignment in selected course
     course_id = selected_course_id(courses_json, selected_course)
     list_of_assignments = get_all_assignments_for_course(student_submissions)
-    print("list of assignments: ", list_of_assignments)
-    max_points = get_max_points_for_assignment(student_submissions)
-    print(max_points)
-    # for a in list_of_assignments:
-    #     assignment_name = assignment_lookup(course_id, a)
-    #     name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
-    #     print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
-    #     create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_points)
+
+    for a in list_of_assignments:
+        assignment_name = assignment_lookup(course_id, a)
+        max_points = get_max_points_for_assignment(student_submissions, a)
+        name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
+        print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
+        create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_points)
 
 
 if __name__ == '__main__':
