@@ -43,6 +43,11 @@ service = build('classroom', 'v1', credentials=creds)
 
 
 def assignment_lookup(course_id_in, id_in):
+    """
+    :param course_id_in:
+    :param id_in:
+    :return: "assignment_name"
+    """
     # api call
     course_info = service.courses().courseWork().get(courseId=course_id_in, id=id_in).execute()
     return course_info["title"]
@@ -167,6 +172,11 @@ def get_all_assignments_for_course(student_submissions):
 
 
 def get_max_points_for_assignment(student_submissions, assignment_id):
+    """
+    :param student_submissions:
+    :param assignment_id:
+    :return: point value ex: 50
+    """
     max_points_list_tuples = [
         (data['courseWorkId'], element['gradeHistory']['maxPoints'], element['gradeHistory']['gradeTimestamp'])
         for data in student_submissions['studentSubmissions']
@@ -174,7 +184,6 @@ def get_max_points_for_assignment(student_submissions, assignment_id):
         for element in data['submissionHistory']
         if 'gradeHistory' in element
         if 'maxPoints' in element['gradeHistory']]
-
     max_point_dict = {}
     for x, y, z in max_points_list_tuples:
         if x in max_point_dict:
@@ -183,8 +192,8 @@ def get_max_points_for_assignment(student_submissions, assignment_id):
         else:
             max_point_dict[x] = [(y, z)]
     ret_val = -1
-    for k, v in max_point_dict.items():
-        x = max([t[1] for t in v])
+    for k, v in max_point_dict.items():  # k: key, v: value
+        x = max([t[1] for t in v])  # t: tuple
         correct_point_value = [item[0] for item in v if item[1] == x][0]  # [0] pops the value out of a list
         if k == assignment_id:
             ret_val = correct_point_value
@@ -249,10 +258,10 @@ def main():
 
     for a in list_of_assignments:
         assignment_name = assignment_lookup(course_id, a)
-        max_points = get_max_points_for_assignment(student_submissions, a)
+        max_pnts = get_max_points_for_assignment(student_submissions, a)
         name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
         print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
-        create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_points)
+        create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_pnts)
 
 
 if __name__ == '__main__':
