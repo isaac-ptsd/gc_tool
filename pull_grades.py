@@ -59,7 +59,6 @@ def find_name_location(student_name, df):
     :param student_name: (string)
     :return: This searches the user specified grade template for a student name and returns the cell coordinates
     for the students name if found, and returns NULL if not found.
-
     """
     a = df.index[df['B'].str.contains(student_name, na=False)]
     if a.empty:
@@ -95,10 +94,14 @@ def create_import_file(grade_template, save_path, assignment_name, course_name, 
                 df.at[i, 'C'] = 'empty, no grade'
                 i -= 1
         for d in name_grade_dict_list:  # d: dictionary
-            for key, value in d.items():
-                found_loc = find_name_location(key, df)
+            for k_name, v_grade in d.items():
+                found_loc = find_name_location(k_name, df)
                 if found_loc != 'empty, no grade':
-                    df.at[found_loc, 'C'] = value
+                    df.at[found_loc, 'C'] = v_grade
+                if found_loc == 'not found':
+                    print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                    print('ERROR:', k_name, ' not found in grade template')
+                    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
         # remove all rows with 'empty, no grade'
         df = df[df.C != 'empty, no grade']
         bad_chars = ["/", "\\", ":", "*", "?", "\"", "<", ">", "|"]
@@ -237,15 +240,13 @@ def main():
                         action='store',
                         choices=course_names,
                         help="Choose a course to pull grade info from.")
-    parser.add_argument('grade_template',
-                        action='store',
-                        widget='FileChooser',
-                        help="Select a grade template to use")
     user_inputs = vars(parser.parse_args())
+
+    # hardcoded path to grade template TODO: update path to a relative path for distribution
+    grade_template = os.path.join('\\\staffdata', 'STAFF', 'isaac.stoutenburgh', 'Desktop', 'GradesTemplate_pst.csv')
 
     # get user selected parameters
     selected_course = user_inputs['course_selection']
-    grade_template = user_inputs['grade_template']
     save_path = user_inputs['output_directory']
     print("\n\n###########################################################################\n\n")
     # API call to get course work
