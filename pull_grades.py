@@ -283,9 +283,6 @@ def main():
                         help="Choose a course to pull grade info from.")
     user_inputs = vars(parser.parse_args())
 
-    # hardcoded path to grade template TODO: update path to a relative path for distribution
-    grade_template = os.path.join('\\\staffdata', 'STAFF', 'isaac.stoutenburgh', 'Desktop', 'GradesTemplate_pst.csv')
-
     # get user selected parameters
     selected_course = user_inputs['course_selection']
     save_path = user_inputs['output_directory']
@@ -312,7 +309,7 @@ def main():
     # create import file for each assignment in selected course
     course_id = selected_course_id(courses_json, selected_course)
     list_of_assignments = get_all_assignments_for_course(student_submissions)
-    # create teacher_student_map for current user
+    # create teacher_student_map for current user TODO: update path to a relative path for distribution
     teacher_map = os.path.join('\\\staffdata', 'STAFF', 'isaac.stoutenburgh', 'Desktop', 'teacher_student_map.csv')
     tm_df = pd.read_csv(teacher_map)
     teacher_student_map = csv_to_teacher_student_map(tm_df, teacher_name_formatted)
