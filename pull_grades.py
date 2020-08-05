@@ -42,29 +42,24 @@ service = build('classroom', 'v1', credentials=creds)
 ###############################################
 
 
-def split_csv(df, teacher_name_to_group_by, output_path, teacher_name_in):
+def csv_to_teacher_student_map(df, teacher_name_in):
     """
-    TODO:
-        1) don't use save_path
-    :param teacher_name_in:
-    :param output_path: location csv files will be saved to
+    :param teacher_name_in: the teacher's students to return
     :param df: dataframe
-    :param teacher_name_to_group_by: this should be a column name in the "to-split" csv file
-    :return: returns data frame containing teacher_student_map info for teacher_name_in
+    :return: returns list of tuples: [(<Student ID>,<Student Name>),(<Student ID>,<Student Name>)]
     """
     df.drop_duplicates()  # remove duplicates
-    df_grouped_by_teacher_name = df.groupby(teacher_name_to_group_by)
+    df.columns = ['A', 'B', 'C']
+    # df = df.groupby(teacher_name_to_group_by)
     not_found_flag = True
-    ret_df = df
-    for (teacher_name_to_group_by, df_per_teacher) in df_grouped_by_teacher_name:
-        if teacher_name_to_group_by == teacher_name_in:
+    ret_val = []
+    for row in df.itertuples():
+        if row.B == teacher_name_in:
             not_found_flag = False
-            df_per_teacher.drop('TEACHERS.LASTFIRST', axis=1, inplace=True)
-            ret_df = df_per_teacher
+            ret_val.append((row.A, row.C))
     if not_found_flag:
         print("\nERROR: CURRENT USER NOT IN STUDENT TEACHER MAP, CONTACT ADMIN\n")
-    print(ret_df)
-    return ret_df
+    return ret_val
 
 
 def assignment_lookup(course_id_in, id_in):
@@ -95,23 +90,46 @@ def find_name_location(student_name, df):
         return a.item()
 
 
-def create_import_file(grade_template, save_path, assignment_name, course_name, name_grade_dict_list, max_points):
+def create_import_file(teacher_student_map,
+                       save_path,
+                       assignment_name,
+                       course_name,
+                       name_grade_dict_list,
+                       max_points,
+                       teacher_name_in):
     """
+    :param teacher_name_in:
     :param max_points:
     :param course_name: user selected course passed in as a parameter from the GUI
-    :param grade_template: csv grade template from PowerSchool
+    :param teacher_student_map: data from PowerSchool to create starting-data grade import template
     :param save_path: where to save new csv file (to be used as an import into PowerSchool)
     :param assignment_name:
-    :param name_grade_dict_list: list of dictionaries: [{<student name>: <grade>}]
+    :param name_grade_dict_list: list of dictionaries: [{<student name>: <grade>}], info pulled from Google ClassRoom
     :return:
     This function will create a csv file of student grades following the grade template format
     """
     try:
-        df = pd.read_csv(grade_template, header=None)
+        starting_data = [{'A': 'Teacher Name:', 'B': '', 'C': ''},
+                         {'A': 'Section:', 'B': '', 'C': ''},
+                         {'A': 'Assignment Name:', 'B': '', 'C': ''},
+                         {'A': 'Due Date:', 'B': '', 'C': ''},
+                         {'A': 'Points Possible:', 'B': '', 'C': ''},
+                         {'A': 'Extra Points:', 'B': '', 'C': ''},
+                         {'A': 'Score Type:', 'B': 'Points', 'C': ''},
+                         {'A': '', 'B': '', 'C': ''},
+                         {'A': 'Student ID', 'B': 'Student Name', 'C': 'Points'}]
+        df = pd.DataFrame(starting_data)
+        # TODO: add students from teacher_student_map
         df.columns = ['A', 'B', 'C']
+        df.at[0, 'B'] = teacher_name_in
         df.at[1, 'B'] = course_name
         df.at[2, 'B'] = assignment_name
         df.at[4, 'B'] = max_points
+        row_incrementer = 9
+        for s_id, s_name in teacher_student_map:
+            df.at[row_incrementer, 'A'] = s_id
+            df.at[row_incrementer, 'B'] = s_name
+            row_incrementer += 1
         num_rows = len(df.index)  # starts counting at 0
         i = num_rows - 1
         if num_rows > 8:
@@ -121,7 +139,8 @@ def create_import_file(grade_template, save_path, assignment_name, course_name, 
         for d in name_grade_dict_list:  # d: dictionary
             for k_name, v_grade in d.items():
                 found_loc = find_name_location(k_name, df)
-                if found_loc != 'empty, no grade':
+                print(found_loc)
+                if found_loc != 'not found':
                     df.at[found_loc, 'C'] = v_grade
                 if found_loc == 'not found':
                     print("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -143,9 +162,7 @@ def student_lookup(user_id):
     :return: "familyName,  givenName"
     called by swap_id_for_name
     """
-    # API Call
     user_info = service.userProfiles().get(userId=user_id).execute()
-    # print("printing user info JSON: ", user_info)
     return user_info["name"]["familyName"] + ", " + user_info["name"]["givenName"]
 
 
@@ -236,21 +253,6 @@ def get_max_points_for_assignment(student_submissions, assignment_id):
     return ret_val
 
 
-def create_grade_template(teacher_student_map):
-    starting_data = [{'A': 'Teacher Name:', 'B': '', 'C': ''},
-                      {'A': 'Section:', 'B': '', 'C': ''},
-                      {'A': 'Assignment Name:', 'B': '', 'C': ''},
-                      {'A': 'Due Date:', 'B': '', 'C': ''},
-                      {'A': 'Points Possible:', 'B': '', 'C': ''},
-                      {'A': 'Extra Points:', 'B': '', 'C': ''},
-                      {'A': 'Score Type:', 'B': 'Points', 'C': ''},
-                      {'A': '', 'B': '', 'C': ''},
-                      {'A': 'Student ID', 'B': 'Student Name', 'C': 'Points'}]
-    df_start = pd.DataFrame(starting_data)
-    print(teacher_student_map)
-    print(df_start)
-
-
 @Gooey(program_name="Fetch Grades")
 def main():
     # API call to get classes
@@ -261,14 +263,10 @@ def main():
                 * parse exported teacher_student_map by teacher, & create individual teacher specific csv files
                 * use the teacher specific csv files to create blank import templates for each teacher
     """
-    # use blank grade template, to create teacher specific grade template (only create for the current user)
-
     # API call to get course json
     course_api_call_results = service.courses().list(pageSize=10).execute()
-
     # create list of course names to select from
     courses_json = course_api_call_results.get('courses')
-
     course_names = []
     for c in courses_json:
         course_names.append(c["name"])
@@ -314,18 +312,23 @@ def main():
     # create import file for each assignment in selected course
     course_id = selected_course_id(courses_json, selected_course)
     list_of_assignments = get_all_assignments_for_course(student_submissions)
-
+    # create teacher_student_map for current user
+    teacher_map = os.path.join('\\\staffdata', 'STAFF', 'isaac.stoutenburgh', 'Desktop', 'teacher_student_map.csv')
+    tm_df = pd.read_csv(teacher_map)
+    teacher_student_map = csv_to_teacher_student_map(tm_df, teacher_name_formatted)
+    print(teacher_student_map)
     for a in list_of_assignments:
         assignment_name = assignment_lookup(course_id, a)
         max_pnts = get_max_points_for_assignment(student_submissions, a)
         name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
         print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
-        create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_pnts)
-
-    teacher_map = os.path.join('\\\staffdata', 'STAFF', 'isaac.stoutenburgh', 'Desktop', 'teacher_student_map.csv')
-    tm_df = pd.read_csv(teacher_map)
-    teacher_student_map = split_csv(tm_df, 'TEACHERS.LASTFIRST', save_path, teacher_name_formatted)
-    create_grade_template(teacher_student_map)
+        create_import_file(teacher_student_map,
+                           save_path,
+                           assignment_name,
+                           selected_course,
+                           name_grade_dict_list,
+                           max_pnts,
+                           teacher_name_formatted)
 
 
 if __name__ == '__main__':
