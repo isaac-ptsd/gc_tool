@@ -42,6 +42,31 @@ service = build('classroom', 'v1', credentials=creds)
 ###############################################
 
 
+def split_csv(df, teacher_name_to_group_by, output_path, teacher_name_in):
+    """
+    TODO:
+        1) don't use save_path
+    :param teacher_name_in:
+    :param output_path: location csv files will be saved to
+    :param df: dataframe
+    :param teacher_name_to_group_by: this should be a column name in the "to-split" csv file
+    :return: returns data frame containing teacher_student_map info for teacher_name_in
+    """
+    df.drop_duplicates()  # remove duplicates
+    df_grouped_by_teacher_name = df.groupby(teacher_name_to_group_by)
+    not_found_flag = True
+    ret_df = df
+    for (teacher_name_to_group_by, df_per_teacher) in df_grouped_by_teacher_name:
+        if teacher_name_to_group_by == teacher_name_in:
+            not_found_flag = False
+            df_per_teacher.drop('TEACHERS.LASTFIRST', axis=1, inplace=True)
+            ret_df = df_per_teacher
+    if not_found_flag:
+        print("\nERROR: CURRENT USER NOT IN STUDENT TEACHER MAP, CONTACT ADMIN\n")
+    print(ret_df)
+    return ret_df
+
+
 def assignment_lookup(course_id_in, id_in):
     """
     :param course_id_in:
@@ -211,6 +236,21 @@ def get_max_points_for_assignment(student_submissions, assignment_id):
     return ret_val
 
 
+def create_grade_template(teacher_student_map):
+    starting_data = [{'A': 'Teacher Name:', 'B': '', 'C': ''},
+                      {'A': 'Section:', 'B': '', 'C': ''},
+                      {'A': 'Assignment Name:', 'B': '', 'C': ''},
+                      {'A': 'Due Date:', 'B': '', 'C': ''},
+                      {'A': 'Points Possible:', 'B': '', 'C': ''},
+                      {'A': 'Extra Points:', 'B': '', 'C': ''},
+                      {'A': 'Score Type:', 'B': 'Points', 'C': ''},
+                      {'A': '', 'B': '', 'C': ''},
+                      {'A': 'Student ID', 'B': 'Student Name', 'C': 'Points'}]
+    df_start = pd.DataFrame(starting_data)
+    print(teacher_student_map)
+    print(df_start)
+
+
 @Gooey(program_name="Fetch Grades")
 def main():
     # API call to get classes
@@ -218,14 +258,17 @@ def main():
     TODO:
              2) create nightly PS export of all students & student ID's across all courses per teacher
              3) update script to use exported PS data to create import csv
-             4) update script to hide grade template selection
+                * parse exported teacher_student_map by teacher, & create individual teacher specific csv files
+                * use the teacher specific csv files to create blank import templates for each teacher
     """
+    # use blank grade template, to create teacher specific grade template (only create for the current user)
 
     # API call to get course json
     course_api_call_results = service.courses().list(pageSize=10).execute()
 
     # create list of course names to select from
     courses_json = course_api_call_results.get('courses')
+
     course_names = []
     for c in courses_json:
         course_names.append(c["name"])
@@ -254,6 +297,13 @@ def main():
         courseId=selected_course_id(courses_json, selected_course),
         courseWorkId='-').execute()
 
+    teacher_name_api = service.courses().teachers().list(
+        courseId=selected_course_id(courses_json, selected_course)).execute()
+    teacher_name = teacher_name_api["teachers"][0]["profile"]["name"]["fullName"].split(" ")[::-1]
+    teacher_name_formatted = teacher_name[0] + ", " + teacher_name[1]
+    print("teacher name: ", teacher_name_formatted)
+
+    # not using, but this is how to get a tuple of useful info:
     # cid_cwid_uid_ag = [(c['courseId'], c['courseWorkId'], c["userId"], c["assignedGrade"])
     #                    for c in student_submissions['studentSubmissions']
     #                    if "courseId" in c
@@ -271,6 +321,11 @@ def main():
         name_grade_dict_list = create_name_grade_dict_list(student_submissions, a)
         print("Assignment: ", assignment_name, "  :  ", create_name_grade_dict_list(student_submissions, a), flush=True)
         create_import_file(grade_template, save_path, assignment_name, selected_course, name_grade_dict_list, max_pnts)
+
+    teacher_map = os.path.join('\\\staffdata', 'STAFF', 'isaac.stoutenburgh', 'Desktop', 'teacher_student_map.csv')
+    tm_df = pd.read_csv(teacher_map)
+    teacher_student_map = split_csv(tm_df, 'TEACHERS.LASTFIRST', save_path, teacher_name_formatted)
+    create_grade_template(teacher_student_map)
 
 
 if __name__ == '__main__':
