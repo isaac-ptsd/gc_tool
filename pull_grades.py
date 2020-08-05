@@ -50,7 +50,6 @@ def csv_to_teacher_student_map(df, teacher_name_in):
     """
     df.drop_duplicates()  # remove duplicates
     df.columns = ['A', 'B', 'C']
-    # df = df.groupby(teacher_name_to_group_by)
     not_found_flag = True
     ret_val = []
     for row in df.itertuples():
@@ -62,14 +61,14 @@ def csv_to_teacher_student_map(df, teacher_name_in):
     return ret_val
 
 
-def assignment_lookup(course_id_in, id_in):
+def assignment_lookup(course_id_in, assign_id_in):
     """
     :param course_id_in:
-    :param id_in:
+    :param assign_id_in:
     :return: "assignment_name"
     """
     # api call
-    course_info = service.courses().courseWork().get(courseId=course_id_in, id=id_in).execute()
+    course_info = service.courses().courseWork().get(courseId=course_id_in, id=assign_id_in).execute()
     return course_info["title"]
 
 
@@ -119,13 +118,12 @@ def create_import_file(teacher_student_map,
                          {'A': '', 'B': '', 'C': ''},
                          {'A': 'Student ID', 'B': 'Student Name', 'C': 'Points'}]
         df = pd.DataFrame(starting_data)
-        # TODO: add students from teacher_student_map
         df.columns = ['A', 'B', 'C']
         df.at[0, 'B'] = teacher_name_in
         df.at[1, 'B'] = course_name
         df.at[2, 'B'] = assignment_name
         df.at[4, 'B'] = max_points
-        row_incrementer = 9
+        row_incrementer = 9  # row 9 of the DataFrame is where student info begins
         for s_id, s_name in teacher_student_map:
             df.at[row_incrementer, 'A'] = s_id
             df.at[row_incrementer, 'B'] = s_name
@@ -259,9 +257,6 @@ def main():
     """
     TODO:
              2) create nightly PS export of all students & student ID's across all courses per teacher
-             3) update script to use exported PS data to create import csv
-                * parse exported teacher_student_map by teacher, & create individual teacher specific csv files
-                * use the teacher specific csv files to create blank import templates for each teacher
     """
     # API call to get course json
     course_api_call_results = service.courses().list(pageSize=10).execute()
@@ -297,14 +292,6 @@ def main():
     teacher_name = teacher_name_api["teachers"][0]["profile"]["name"]["fullName"].split(" ")[::-1]
     teacher_name_formatted = teacher_name[0] + ", " + teacher_name[1]
     print("teacher name: ", teacher_name_formatted)
-
-    # not using, but this is how to get a tuple of useful info:
-    # cid_cwid_uid_ag = [(c['courseId'], c['courseWorkId'], c["userId"], c["assignedGrade"])
-    #                    for c in student_submissions['studentSubmissions']
-    #                    if "courseId" in c
-    #                    and "courseWorkId" in c
-    #                    and "userId" in c
-    #                    and "assignedGrade" in c]
 
     # create import file for each assignment in selected course
     course_id = selected_course_id(courses_json, selected_course)
